@@ -1,0 +1,30 @@
+# User unit: one tick of the local pickup driver (ADR 0010; Blueprint: "fired
+# every few minutes by a user-level timer with your existing gh login").
+# Started by heterodyne-pickup.timer. Not enabled by anything in this repo.
+#
+# Install, as the owner (not root):
+#   mkdir -p ~/.config/systemd/user ~/.config/heterodyne
+#   cp scripts/systemd/heterodyne-pickup.service scripts/systemd/heterodyne-pickup.timer ~/.config/systemd/user/
+#   printf 'HETERODYNE_CLONE=%s\n' "$PWD" > ~/.config/heterodyne/pickup.env
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now heterodyne-pickup.timer
+# pickup.env may also set HETERODYNE_REPO, HETERODYNE_MAX_RUNS,
+# HETERODYNE_MAX_TURNS and HETERODYNE_SKILL_NS (see the scripts' headers).
+# User units stop at logout unless lingering is on: loginctl enable-linger "$USER"
+# Logs: journalctl --user -u heterodyne-pickup; per-run logs under
+# .git/heterodyne/runs/ in the clone.
+
+[Unit]
+Description=heterodyne pickup driver tick
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/heterodyne/pickup.env
+# claude and go live in ~/.local/bin on megatron; gh and jq in /usr/bin.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Clean up worktrees of merged or closed PRs, then dispatch.
+ExecStart=/usr/bin/env bash ${HETERODYNE_CLONE}/scripts/pickup.sh --reconcile
+ExecStart=/usr/bin/env bash ${HETERODYNE_CLONE}/scripts/pickup.sh
+# Runs started by a tick are detached children; KillMode=process lets them
+# keep running after the tick's main process exits.
+KillMode=process
